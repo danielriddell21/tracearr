@@ -1,0 +1,46 @@
+# Reference compose snippet wiring tracearr to an OTel Collector and Tempo.
+# Drop into your existing *arr stack; tracearr does not depend on the *arr
+# containers being in this compose file — it only needs network reachability
+# for v0.2 polling (Prowlarr / queue endpoints).
+
+services:
+  tracearr:
+    image: ghcr.io/danielriddell21/tracearr:latest
+    restart: unless-stopped
+    environment:
+      OVERSEERR_WEBHOOK_SECRET: ${OVERSEERR_WEBHOOK_SECRET}
+      SONARR_API_KEY: ${SONARR_API_KEY}
+      SONARR_WEBHOOK_SECRET: ${SONARR_WEBHOOK_SECRET}
+      RADARR_API_KEY: ${RADARR_API_KEY}
+      RADARR_WEBHOOK_SECRET: ${RADARR_WEBHOOK_SECRET}
+      NZBGET_SCRIPT_TOKEN: ${NZBGET_SCRIPT_TOKEN}
+      SABNZBD_SCRIPT_TOKEN: ${SABNZBD_SCRIPT_TOKEN}
+    volumes:
+      - ./tracearr/config.yaml:/etc/tracearr/config.yaml:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP query API
+
+volumes:
+  tempo-data:

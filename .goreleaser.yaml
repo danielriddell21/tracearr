@@ -1,0 +1,58 @@
+version: 2
+project_name: tracearr
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: tracearr
+    main: ./cmd/tracearr
+    binary: tracearr
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE*
+      - README*
+      - config.example.yaml
+      - scripts/**/*
+checksum:
+  name_template: "checksums.txt"
+dockers:
+  - image_templates:
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-amd64"
+    use: buildx
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=VERSION={{ .Version }}"
+  - image_templates:
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-arm64"
+    use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=VERSION={{ .Version }}"
+docker_manifests:
+  - name_template: "ghcr.io/danielriddell21/tracearr:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-amd64"
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/danielriddell21/tracearr:latest"
+    image_templates:
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-amd64"
+      - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-arm64"
+release:
+  draft: true

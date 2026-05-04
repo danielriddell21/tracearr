@@ -1,0 +1,67 @@
+# tracearr v0.1 example config.
+#
+# Secrets are NEVER inlined here — use *_env keys to point at environment
+# variables. See README.md for the full attribute and event reference.
+
+server:
+  listen: "0.0.0.0:8080"
+  read_timeout: 10s
+
+storage:
+  backend: memory               # v0.1; v0.2 adds bolt
+  max_trace_duration: 336h      # 14 days
+
+correlation:
+  download_lookback: 60s
+
+sources:
+  overseerr:
+    enabled: true
+    base_url: http://overseerr:5055
+    webhook_secret_env: OVERSEERR_WEBHOOK_SECRET   # Authorization: Bearer <value>
+
+  jellyseerr:
+    enabled: false
+
+  sonarr:
+    enabled: true
+    base_url: http://sonarr:8989
+    api_key_env: SONARR_API_KEY
+    webhook_secret_env: SONARR_WEBHOOK_SECRET      # X-Webhook-Signature HMAC-SHA256
+
+  radarr:
+    enabled: true
+    base_url: http://radarr:7878
+    api_key_env: RADARR_API_KEY
+    webhook_secret_env: RADARR_WEBHOOK_SECRET
+
+  prowlarr:
+    enabled: false               # v0.2 polling
+    base_url: http://prowlarr:9696
+    api_key_env: PROWLARR_API_KEY
+
+  nzbget:
+    enabled: true
+    script_token_env: NZBGET_SCRIPT_TOKEN          # Authorization: Bearer <value>
+
+  sabnzbd:
+    enabled: true
+    script_token_env: SABNZBD_SCRIPT_TOKEN
+
+exporter:
+  otlp:
+    endpoint: otel-collector:4317
+    protocol: grpc               # grpc | http/protobuf
+    insecure: true
+    headers_env: OTLP_HEADERS    # optional: "x-token=abc,x-foo=bar"
+
+sampling:
+  strategy: always_on
+
+logs:
+  level: info
+  format: json
+
+metrics:
+  enabled: true
+  export_interval: 60s
