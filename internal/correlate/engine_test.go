@@ -12,7 +12,7 @@ import (
 
 func newTestEngine(t *testing.T) (*Engine, *fakeBuilder, Store) {
 	t.Helper()
-	store := NewMemoryStore(time.Hour)
+	store := NewMemoryStore(time.Hour, 30*24*time.Hour)
 	fb := newFakeBuilder()
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	eng := NewEngine(store, fb, logger, time.Minute)

@@ -101,6 +101,7 @@ func sonarrGrabs(p SonarrPayload, src correlate.Source, now time.Time) []correla
 		DownloadClient:    p.DownloadClient,
 		DownloadID:        p.DownloadID,
 		Protocol:          arrProtocol(p.DownloadClientType),
+		IsUpgrade:         p.IsUpgrade,
 	}
 	for _, ep := range p.Episodes {
 		rel.Episodes = append(rel.Episodes, correlate.EpisodeRef{

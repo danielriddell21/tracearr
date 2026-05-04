@@ -84,6 +84,7 @@ type Release struct {
 	DownloadID        string
 	Protocol          string // "usenet" | "torrent"
 	Episodes          []EpisodeRef
+	IsUpgrade         bool
 }
 
 // EpisodeRef is a Sonarr-side episode descriptor.

@@ -77,6 +77,7 @@ func parseRadarr(raw []byte) ([]correlate.Event, error) {
 				DownloadClient:    p.DownloadClient,
 				DownloadID:        p.DownloadID,
 				Protocol:          arrProtocol(p.DownloadClientType),
+				IsUpgrade:         p.IsUpgrade,
 			},
 			EventID: p.DownloadID + ":grab",
 		}}, nil

@@ -18,6 +18,7 @@ import (
 	"github.com/danielriddell21/tracearr/internal/correlate"
 	"github.com/danielriddell21/tracearr/internal/exporter"
 	"github.com/danielriddell21/tracearr/internal/log"
+	"github.com/danielriddell21/tracearr/internal/poller"
 	"github.com/danielriddell21/tracearr/internal/receiver"
 	"github.com/danielriddell21/tracearr/internal/spans"
 )
@@ -71,7 +72,7 @@ func run() error {
 
 	tracer := provider.Tracer("tracearr")
 	builder := spans.NewOTelBuilder(tracer)
-	store := correlate.NewMemoryStore(24 * time.Hour)
+	store := correlate.NewMemoryStore(24*time.Hour, 30*24*time.Hour)
 	engine := correlate.NewEngine(store, builder, logger, cfg.Correlation.DownloadLookback)
 
 	// Janitor.
@@ -89,6 +90,23 @@ func run() error {
 			}
 		}
 	}()
+
+	// Pollers (v0.2). Each runs in its own goroutine; ctx cancellation stops them.
+	if app := cfg.Sources.Sonarr; app.Enabled && app.BaseURL != "" && app.APIKey != "" {
+		p := poller.NewQueuePoller("sonarr", app.BaseURL, app.APIKey, app.QueuePollInterval,
+			poller.EngineNoter{Engine: engine}, logger)
+		go p.Run(ctx)
+	}
+	if app := cfg.Sources.Radarr; app.Enabled && app.BaseURL != "" && app.APIKey != "" {
+		p := poller.NewQueuePoller("radarr", app.BaseURL, app.APIKey, app.QueuePollInterval,
+			poller.EngineNoter{Engine: engine}, logger)
+		go p.Run(ctx)
+	}
+	if app := cfg.Sources.Prowlarr; app.Enabled && app.BaseURL != "" && app.APIKey != "" {
+		p := poller.NewProwlarrPoller(app.BaseURL, app.APIKey, app.HistoryPollInterval,
+			poller.EngineProwlarr{Engine: engine}, logger)
+		go p.Run(ctx)
+	}
 
 	srv := &http.Server{
 		Addr:        cfg.Server.Listen,

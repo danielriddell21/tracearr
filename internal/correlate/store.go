@@ -64,25 +64,50 @@ type Store interface {
 	// is the first time we have seen it (i.e., not a duplicate). Empty IDs
 	// always return true.
 	SeenEvent(source Source, eventID string, now time.Time) bool
+
+	// RememberClosed records the just-closed trace's TraceID + outcome so a
+	// subsequent attempt for the same media (re-grab, quality upgrade, retry)
+	// can be linked to it. Records expire after the store's configured
+	// recall TTL.
+	RememberClosed(k MediaKey, traceID [16]byte, attempt int, outcome Outcome, when time.Time)
+
+	// RecallClosed returns the most recent closed trace for k, if any record
+	// is still within the recall TTL.
+	RecallClosed(k MediaKey, now time.Time) (ClosedTrace, bool)
+}
+
+// ClosedTrace is what RecallClosed returns: the bare minimum to construct
+// a span Link plus enough metadata for upgrade-reason inference.
+type ClosedTrace struct {
+	TraceID  [16]byte
+	Attempt  int
+	Outcome  Outcome
+	ClosedAt time.Time
 }
 
 // memoryStore is a thread-safe in-memory implementation.
 type memoryStore struct {
-	mu       sync.Mutex
-	byKey    map[MediaKey]*TraceState
-	byDLID   map[string]MediaKey
-	dedup    map[string]time.Time // "source|eventID" -> firstSeen
-	dedupTTL time.Duration
+	mu        sync.Mutex
+	byKey     map[MediaKey]*TraceState
+	byDLID    map[string]MediaKey
+	dedup     map[string]time.Time // "source|eventID" -> firstSeen
+	closed    map[MediaKey]ClosedTrace
+	dedupTTL  time.Duration
+	recallTTL time.Duration
 }
 
 // NewMemoryStore returns an in-memory Store. dedupTTL bounds how long an
-// (source,eventID) is remembered for deduplication (24h is a reasonable default).
-func NewMemoryStore(dedupTTL time.Duration) Store {
+// (source,eventID) is remembered for deduplication (24h is a reasonable
+// default); recallTTL bounds how long a closed trace is recalled for
+// upgrade-link purposes (30d is a reasonable default).
+func NewMemoryStore(dedupTTL, recallTTL time.Duration) Store {
 	return &memoryStore{
-		byKey:    make(map[MediaKey]*TraceState),
-		byDLID:   make(map[string]MediaKey),
-		dedup:    make(map[string]time.Time),
-		dedupTTL: dedupTTL,
+		byKey:     make(map[MediaKey]*TraceState),
+		byDLID:    make(map[string]MediaKey),
+		dedup:     make(map[string]time.Time),
+		closed:    make(map[MediaKey]ClosedTrace),
+		dedupTTL:  dedupTTL,
+		recallTTL: recallTTL,
 	}
 }
 
@@ -136,6 +161,42 @@ func (m *memoryStore) Stale(ttl time.Duration, now time.Time) []MediaKey {
 		}
 	}
 	return out
+}
+
+func (m *memoryStore) RememberClosed(k MediaKey, tid [16]byte, attempt int, outcome Outcome, when time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	// Opportunistic GC.
+	cutoff := when.Add(-m.recallTTL)
+	for k2, c := range m.closed {
+		if c.ClosedAt.Before(cutoff) {
+			delete(m.closed, k2)
+		}
+	}
+	m.closed[k] = ClosedTrace{TraceID: tid, Attempt: attempt, Outcome: outcome, ClosedAt: when}
+}
+
+func (m *memoryStore) RecallClosed(k MediaKey, now time.Time) (ClosedTrace, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.closed[k]
+	if !ok {
+		// Try the series-level key for TV; episode upgrades should link to the
+		// most recent attempt at any level for the same series.
+		if k.Type == MediaTypeTV {
+			if c2, ok2 := m.closed[k.SeriesKey()]; ok2 {
+				c, ok = c2, true
+			}
+		}
+	}
+	if !ok {
+		return ClosedTrace{}, false
+	}
+	if c.ClosedAt.Before(now.Add(-m.recallTTL)) {
+		delete(m.closed, k)
+		return ClosedTrace{}, false
+	}
+	return c, true
 }
 
 func (m *memoryStore) SeenEvent(src Source, id string, now time.Time) bool {

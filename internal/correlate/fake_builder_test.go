@@ -24,6 +24,7 @@ type recordedSpan struct {
 	SpanID     [8]byte
 	TraceID    [16]byte
 	HasParent  bool
+	Links      []trace.Link
 }
 
 type recordedEvent struct {
@@ -69,7 +70,7 @@ func (b *fakeBuilder) nextTraceID() [16]byte {
 type rootCtxKey struct{ id uint64 }
 
 func (b *fakeBuilder) OpenRoot(ctx context.Context, name, kind string, start time.Time,
-	attrs []attribute.KeyValue, _ []trace.Link) (context.Context, [16]byte, [8]byte) {
+	attrs []attribute.KeyValue, links []trace.Link) (context.Context, [16]byte, [8]byte) {
 	rs := &recordedSpan{
 		Name:    name,
 		Kind:    kind,
@@ -77,6 +78,7 @@ func (b *fakeBuilder) OpenRoot(ctx context.Context, name, kind string, start tim
 		Attrs:   append([]attribute.KeyValue{}, attrs...),
 		SpanID:  b.nextID(),
 		TraceID: b.nextTraceID(),
+		Links:   append([]trace.Link{}, links...),
 	}
 	b.openByID[rs.SpanID] = rs
 	b.all = append(b.all, rs)
