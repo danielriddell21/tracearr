@@ -72,8 +72,22 @@ func run() error {
 
 	tracer := provider.Tracer("tracearr")
 	builder := spans.NewOTelBuilder(tracer)
-	store := correlate.NewMemoryStore(24*time.Hour, 30*24*time.Hour)
+
+	var store correlate.Store
+	switch cfg.Storage.Backend {
+	case "bolt":
+		s, err := correlate.OpenBoltStore(cfg.Storage.Path, 24*time.Hour, 30*24*time.Hour)
+		if err != nil {
+			return fmt.Errorf("open bolt store: %w", err)
+		}
+		store = s
+	default:
+		store = correlate.NewMemoryStore(24*time.Hour, 30*24*time.Hour)
+	}
+	defer func() { _ = store.Close() }()
+
 	engine := correlate.NewEngine(store, builder, logger, cfg.Correlation.DownloadLookback)
+	engine.Restore(ctx)
 
 	// Janitor.
 	janitorDone := make(chan struct{})

@@ -75,6 +75,51 @@ func NewEngine(store Store, builder Builder, log *slog.Logger, pendingDLTTL time
 	}
 }
 
+// Restore rehydrates in-flight traces from the store. Each loaded trace is
+// marked Resumed; subsequent events for it will be expressed as synthetic
+// spans (the original OTel Span handles do not survive a process restart).
+// A reconstructed parent SpanContext is installed in ctxByKey so that any
+// child spans we synthesise are correctly placed under the original
+// TraceID/RootSpanID. Stale span-id pointers (HasGrab/HasDownload) are
+// cleared because the spans they referenced were never End()ed and are
+// permanently lost from the backend.
+func (e *Engine) Restore(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, ts := range e.store.LoadAll() {
+		sc := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    ts.TraceID,
+			SpanID:     ts.RootSpanID,
+			TraceFlags: trace.FlagsSampled,
+			Remote:     true,
+		})
+		e.ctxByKey[ts.Key] = trace.ContextWithSpanContext(ctx, sc)
+		ts.HasGrab = false
+		ts.HasDownload = false
+		e.store.Put(ts)
+		e.log.LogAttrs(ctx, slog.LevelInfo, "trace resumed",
+			slog.String("event", "tracearr.resumed"),
+			slog.String("media.title", ts.Title),
+			slog.Int("media.attempt", ts.Attempt),
+			slog.String("trace_id", traceIDHex(ts.TraceID)))
+	}
+}
+
+// resumedRootAttrs reconstructs the root span attributes from the persisted
+// TraceState fields. Used when synthesising the root span at close time
+// for a trace that was resumed from disk.
+func resumedRootAttrs(state *TraceState) []attribute.KeyValue {
+	attrs := baseAttrs(state.Key, state.Title, state.Attempt)
+	attrs = append(attrs, spans.AttrMediaSource.String(string(state.Source)))
+	if state.RequestID != "" {
+		attrs = append(attrs, spans.AttrMediaRequestID.String(state.RequestID))
+	}
+	if state.RequestedBy != "" {
+		attrs = append(attrs, spans.AttrMediaRequestedBy.String(state.RequestedBy))
+	}
+	return attrs
+}
+
 // Process handles a single Event. Errors are logged and swallowed; receivers
 // should always 200 their callers.
 func (e *Engine) Process(ctx context.Context, ev Event) {
@@ -151,14 +196,16 @@ func (e *Engine) onRequestOpened(ctx context.Context, ev Event) {
 	state := &TraceState{
 		Key:         ev.Key,
 		TraceID:     tid,
+		RootSpanID:  sid,
 		Attempt:     attempt,
 		Source:      ev.Source,
 		OpenedAt:    ev.OccurredAt,
 		UpdatedAt:   ev.OccurredAt,
 		SearchStart: ev.OccurredAt,
 		Title:       ev.Title,
+		RequestID:   ev.RequestID,
+		RequestedBy: ev.RequestedBy,
 	}
-	_ = sid
 	e.ctxByKey[ev.Key] = rootCtx
 	e.store.Put(state)
 	e.log.LogAttrs(ctx, slog.LevelInfo, "request opened",
@@ -222,7 +269,7 @@ func (e *Engine) onRequestClosed(ctx context.Context, ev Event) {
 		return
 	}
 	rootCtx := e.ctxByKey[key]
-	// Defensive close of any still-open children.
+	// Defensive close of any still-open children opened in this process.
 	if state.HasDownload {
 		e.builder.CloseSpan(rootCtx, state.DownloadSpanID, ev.OccurredAt, true, "", nil)
 		state.HasDownload = false
@@ -232,13 +279,25 @@ func (e *Engine) onRequestClosed(ctx context.Context, ev Event) {
 		state.HasGrab = false
 	}
 	okStatus := ev.Outcome == OutcomeAvailable
-	e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, okStatus, ev.ErrorReason, nil)
+	if state.Resumed {
+		// Emit synthetic root with original start time so the reassembled
+		// trace shows up in Tempo as a complete tree.
+		attrs := resumedRootAttrs(state)
+		if !okStatus && ev.ErrorReason != "" {
+			attrs = append(attrs, attribute.String("error.type", ev.ErrorReason))
+		}
+		e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+			state.OpenedAt, ev.OccurredAt, attrs)
+	} else {
+		e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, okStatus, ev.ErrorReason, nil)
+	}
 	delete(e.ctxByKey, key)
 	e.store.Delete(key)
 	e.store.RememberClosed(key, state.TraceID, state.Attempt, ev.Outcome, ev.OccurredAt)
 	e.log.LogAttrs(ctx, slog.LevelInfo, "request closed",
 		slog.String("event", "media.request.closed"),
 		slog.String("outcome", string(ev.Outcome)),
+		slog.Bool("resumed", state.Resumed),
 		slog.Int("media.attempt", state.Attempt),
 		slog.String("trace_id", traceIDHex(state.TraceID)))
 }
@@ -327,6 +386,7 @@ func (e *Engine) handleDownloadStart(rootCtx context.Context, state *TraceState,
 	sid := e.builder.OpenChild(rootCtx, spans.SpanDownloadTransfer, "CLIENT", ev.OccurredAt, attrs)
 	state.DownloadSpanID = sid
 	state.HasDownload = true
+	state.DownloadStartedAt = ev.OccurredAt
 	state.UpdatedAt = ev.OccurredAt
 	e.store.Put(state)
 }
@@ -405,7 +465,12 @@ func (e *Engine) onImported(ctx context.Context, ev Event) {
 
 	// If this trace had no Overseerr (orphan/upgrade), close root immediately.
 	if state.Source == SourceSonarr || state.Source == SourceRadarr {
-		e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, true, "", nil)
+		if state.Resumed {
+			e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+				state.OpenedAt, ev.OccurredAt, resumedRootAttrs(state))
+		} else {
+			e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, true, "", nil)
+		}
 		delete(e.ctxByKey, key)
 		e.store.Delete(key)
 		e.store.RememberClosed(key, state.TraceID, state.Attempt, OutcomeAvailable, ev.OccurredAt)
@@ -457,10 +522,11 @@ func (e *Engine) openOrphanRoot(ctx context.Context, ev Event) *TraceState {
 	if reason != "" {
 		attrs = append(attrs, spans.AttrMediaUpgradeReason.String(reason))
 	}
-	rootCtx, tid, _ := e.builder.OpenRoot(ctx, spans.SpanMediaRequest, "SERVER", ev.OccurredAt, attrs, links)
+	rootCtx, tid, sid := e.builder.OpenRoot(ctx, spans.SpanMediaRequest, "SERVER", ev.OccurredAt, attrs, links)
 	state := &TraceState{
 		Key:         ev.Key,
 		TraceID:     tid,
+		RootSpanID:  sid,
 		Attempt:     attempt,
 		Source:      ev.Source,
 		OpenedAt:    ev.OccurredAt,
@@ -579,7 +645,14 @@ func (e *Engine) Sweep(now time.Time, ttl time.Duration) {
 		if state.HasGrab {
 			e.builder.CloseSpan(rootCtx, state.GrabSpanID, now, false, spans.ErrTracearrTimeout, nil)
 		}
-		e.builder.CloseSpan(rootCtx, [8]byte{}, now, false, spans.ErrTracearrTimeout, nil)
+		if state.Resumed {
+			attrs := resumedRootAttrs(state)
+			attrs = append(attrs, attribute.String("error.type", spans.ErrTracearrTimeout))
+			e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+				state.OpenedAt, now, attrs)
+		} else {
+			e.builder.CloseSpan(rootCtx, [8]byte{}, now, false, spans.ErrTracearrTimeout, nil)
+		}
 		delete(e.ctxByKey, k)
 		e.store.Delete(k)
 		e.store.RememberClosed(k, state.TraceID, state.Attempt, OutcomeTimeout, now)

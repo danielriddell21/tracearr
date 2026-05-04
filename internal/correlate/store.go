@@ -5,39 +5,51 @@ import (
 	"time"
 )
 
-// TraceState is the per-trace record kept in the store.
+// TraceState is the per-trace record kept in the store. It is JSON-
+// serialised into BoltDB; field names are stable.
 type TraceState struct {
-	Key       MediaKey
-	TraceID   [16]byte // OTel trace id of this attempt's root
-	Attempt   int
-	Source    Source
-	OpenedAt  time.Time
-	UpdatedAt time.Time
+	Key       MediaKey  `json:"key"`
+	TraceID   [16]byte  `json:"trace_id"`
+	RootSpanID [8]byte  `json:"root_span_id"`
+	Attempt   int       `json:"attempt"`
+	Source    Source    `json:"source"`
+	OpenedAt  time.Time `json:"opened_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
 	// References to active child spans by phase. We keep span IDs so receivers
 	// can close the right child without re-resolving.
-	GrabSpanID     [8]byte
-	HasGrab        bool
-	DownloadSpanID [8]byte
-	HasDownload    bool
+	GrabSpanID     [8]byte `json:"grab_span_id"`
+	HasGrab        bool    `json:"has_grab"`
+	DownloadSpanID [8]byte `json:"download_span_id"`
+	HasDownload    bool    `json:"has_download"`
 
 	// SearchStart is the moment we'd anchor a synthetic prowlarr.search span;
 	// set on PhaseRequestApproved (or RequestOpened if no approval event arrives).
-	SearchStart time.Time
+	SearchStart time.Time `json:"search_start"`
+
+	// DownloadStartedAt records when the download.transfer span was opened, so
+	// that a post-restart download.done can synthesise a span with accurate
+	// start time even though the original Span handle is lost.
+	DownloadStartedAt time.Time `json:"download_started_at"`
 
 	// DownloadID -> trace mapping is kept in the store directly; this is the
 	// last seen DownloadID for this trace so we can clean up index entries.
-	DownloadID string
+	DownloadID string `json:"download_id"`
 
 	// LastError is the most recent error reason recorded against this trace.
-	LastError string
+	LastError string `json:"last_error"`
 
-	// Title is cached for log readability and metrics fallback.
-	Title string
+	// Cached attrs needed to faithfully re-synthesise the root span post-
+	// restart (OTel does not let us End() a span whose handle has been lost).
+	Title       string `json:"title"`
+	RequestID   string `json:"request_id"`
+	RequestedBy string `json:"requested_by"`
 
-	// PreviousTraceID, when set, points at the prior attempt's root for span links.
-	PreviousTraceID [16]byte
-	HasPrevious     bool
+	// Resumed is true when this state was loaded from disk by Restore(). It
+	// flips back to false once the trace closes. While Resumed, the engine
+	// uses synthetic spans (with reconstructed parent context) instead of
+	// live tracer.Start spans so we don't dangle un-ended span handles.
+	Resumed bool `json:"-"`
 }
 
 // Store persists in-flight traces. The v0.1 implementation is in-memory
@@ -74,6 +86,15 @@ type Store interface {
 	// RecallClosed returns the most recent closed trace for k, if any record
 	// is still within the recall TTL.
 	RecallClosed(k MediaKey, now time.Time) (ClosedTrace, bool)
+
+	// LoadAll returns every persisted in-flight trace. Used by Engine.Restore
+	// at startup to rehydrate state. Each returned TraceState should have
+	// Resumed=true so the engine knows to emit synthetic spans rather than
+	// trying to use live OTel handles it doesn't have.
+	LoadAll() []*TraceState
+
+	// Close releases resources (closing the BoltDB handle, flushing, etc.).
+	Close() error
 }
 
 // ClosedTrace is what RecallClosed returns: the bare minimum to construct
@@ -219,3 +240,15 @@ func (m *memoryStore) SeenEvent(src Source, id string, now time.Time) bool {
 	m.dedup[key] = now
 	return true
 }
+
+func (m *memoryStore) LoadAll() []*TraceState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*TraceState, 0, len(m.byKey))
+	for _, s := range m.byKey {
+		out = append(out, s)
+	}
+	return out
+}
+
+func (m *memoryStore) Close() error { return nil }

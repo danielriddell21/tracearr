@@ -8,8 +8,9 @@ server:
   read_timeout: 10s
 
 storage:
-  backend: memory               # v0.1; v0.2 adds bolt
-  max_trace_duration: 336h      # 14 days
+  backend: bolt                  # memory | bolt
+  path: /var/lib/tracearr/state.db
+  max_trace_duration: 336h       # 14 days
 
 correlation:
   download_lookback: 60s
@@ -28,17 +29,20 @@ sources:
     base_url: http://sonarr:8989
     api_key_env: SONARR_API_KEY
     webhook_secret_env: SONARR_WEBHOOK_SECRET      # X-Webhook-Signature HMAC-SHA256
+    queue_poll_interval: 30s
 
   radarr:
     enabled: true
     base_url: http://radarr:7878
     api_key_env: RADARR_API_KEY
     webhook_secret_env: RADARR_WEBHOOK_SECRET
+    queue_poll_interval: 30s
 
   prowlarr:
-    enabled: false               # v0.2 polling
+    enabled: true
     base_url: http://prowlarr:9696
     api_key_env: PROWLARR_API_KEY
+    history_poll_interval: 30s
 
   nzbget:
     enabled: true

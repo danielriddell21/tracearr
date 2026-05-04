@@ -14,12 +14,23 @@ equivalent.
 
 ## Status
 
-**v0.1** — webhooks → spans → OTLP export. In-memory state, synthetic
-`prowlarr.search` derived from grab timing, NZBGet/SABnzbd via helper scripts,
-multi-arch container.
+**v0.2** — adds:
+- BoltDB-backed state with cross-restart resume (synthetic spans
+  reconstruct the trace post-restart, original TraceID preserved)
+- Linked-trace upgrades: quality upgrades and failed retries open a new
+  trace with an OTel `Link` to the prior attempt and `media.upgrade_reason`
+  attribute
+- Sonarr/Radarr `/api/v3/queue` polling — surfaces stalled items as
+  `queue.stalled` span events on the live grab span
+- Prowlarr `/api/v1/history` polling — emits `prowlarr.search` spans per
+  indexer query, parented under matching in-flight traces or surfaced as
+  `prowlarr.unmatched` orphan spans
 
-See [`PLAN.md`](docs/PLAN.md) (or the planner's notes) for the v0.2/v0.3
-roadmap (BoltDB persistence, real Prowlarr polling, derived metrics, dashboards).
+**v0.1** delivered: webhook receivers, in-memory correlation, synthetic
+`prowlarr.search` from grab timing, NZBGet/SABnzbd helper scripts.
+
+See the planner's notes for the v0.3 roadmap (derived metrics, dashboards,
+docs hardening).
 
 ## Span tree
 
