@@ -1,0 +1,74 @@
+{
+  "title": "tracearr",
+  "uid": "tracearr-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "tags": ["tracearr", "arr", "opentelemetry"],
+  "templating": {
+    "list": [
+      { "name": "DS_PROM", "type": "datasource", "query": "prometheus", "current": { "text": "Prometheus", "value": "Prometheus" } },
+      { "name": "DS_TEMPO", "type": "datasource", "query": "tempo",      "current": { "text": "Tempo",      "value": "Tempo" } }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Request duration (p50/p95/p99)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by(le, media_type) (rate(tracearr_request_duration_seconds_bucket[5m])))", "legendFormat": "p50 {{media_type}}" },
+        { "expr": "histogram_quantile(0.95, sum by(le, media_type) (rate(tracearr_request_duration_seconds_bucket[5m])))", "legendFormat": "p95 {{media_type}}" },
+        { "expr": "histogram_quantile(0.99, sum by(le, media_type) (rate(tracearr_request_duration_seconds_bucket[5m])))", "legendFormat": "p99 {{media_type}}" }
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Grab duration by indexer (p95)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by(le, indexer) (rate(tracearr_grab_duration_seconds_bucket[15m])))", "legendFormat": "{{indexer}}" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Download duration by client (p50/p95)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by(le, client) (rate(tracearr_download_duration_seconds_bucket[15m])))", "legendFormat": "p50 {{client}}" },
+        { "expr": "histogram_quantile(0.95, sum by(le, client) (rate(tracearr_download_duration_seconds_bucket[15m])))", "legendFormat": "p95 {{client}}" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Import duration by app",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by(le, app) (rate(tracearr_import_duration_seconds_bucket[15m])))", "legendFormat": "{{app}} p95" }
+      ]
+    },
+    {
+      "id": 5, "type": "stat", "title": "In-flight by phase",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "targets": [ { "expr": "tracearr_in_flight", "legendFormat": "{{phase}}" } ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Attempts (rate by outcome)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "targets": [ { "expr": "sum by(outcome, upgrade_reason) (rate(tracearr_attempts_total[15m]))", "legendFormat": "{{outcome}} / {{upgrade_reason}}" } ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Webhook receipts by result",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "targets": [ { "expr": "sum by(source, result) (rate(tracearr_webhook_received_total[5m]))", "legendFormat": "{{source}} / {{result}}" } ]
+    }
+  ]
+}

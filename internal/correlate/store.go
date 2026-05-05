@@ -52,9 +52,8 @@ type TraceState struct {
 	Resumed bool `json:"-"`
 }
 
-// Store persists in-flight traces. The v0.1 implementation is in-memory
-// with a janitor; v0.2 replaces this with a BoltDB-backed implementation
-// behind the same interface.
+// Store persists in-flight traces. Two implementations are provided
+// behind this interface: an in-memory store and a BoltDB-backed store.
 type Store interface {
 	// Get returns the trace for k, or false if absent.
 	Get(k MediaKey) (*TraceState, bool)

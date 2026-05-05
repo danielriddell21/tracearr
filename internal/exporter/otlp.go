@@ -1,5 +1,5 @@
 // Package exporter wires the OTel SDK (TracerProvider, batch processor,
-// OTLP exporter) for tracearr. v0.1 supports gRPC and HTTP/protobuf.
+// OTLP exporter) for tracearr. Supports gRPC and HTTP/protobuf.
 package exporter
 
 import (

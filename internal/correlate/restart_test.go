@@ -71,10 +71,10 @@ func TestBoltStoreRoundtrip(t *testing.T) {
 	}
 }
 
-// TestRestartResumeProducesSyntheticRoot is the v0.2 acceptance criterion:
-// open a trace, simulate a crash by spinning up a fresh engine pointed at
-// the same Bolt file, then deliver the closing events. Assert the resumed
-// trace produces a synthetic root span with the original start time.
+// TestRestartResumeProducesSyntheticRoot opens a trace, simulates a crash
+// by spinning up a fresh engine pointed at the same Bolt file, then
+// delivers the closing events. Asserts the resumed trace produces a
+// synthetic root span with the original start time.
 func TestRestartResumeProducesSyntheticRoot(t *testing.T) {
 	dir := t.TempDir()
 	dbpath := filepath.Join(dir, "trace.db")

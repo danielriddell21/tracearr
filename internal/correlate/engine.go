@@ -2,6 +2,7 @@ package correlate
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"sync"
@@ -40,22 +41,51 @@ type Builder interface {
 		attrs []attribute.KeyValue)
 }
 
+// MetricSink is what the engine calls to emit derived metrics. The
+// production implementation is *metrics.Metrics; tests can pass nil
+// (a nil sink is a no-op).
+type MetricSink interface {
+	ObserveRequest(ctx context.Context, mediaType, source, outcome string, d time.Duration)
+	ObserveGrab(ctx context.Context, mediaType, indexer string, d time.Duration)
+	ObserveDownload(ctx context.Context, client, protocol string, d time.Duration)
+	ObserveImport(ctx context.Context, app string, d time.Duration)
+	CountAttempt(ctx context.Context, mediaType, outcome, upgradeReason string)
+	AdjustInFlight(ctx context.Context, phase string, delta int64)
+}
+
 // Engine is the correlation brain. One Engine per process.
 type Engine struct {
 	mu      sync.Mutex
 	store   Store
 	builder Builder
 	log     *slog.Logger
+	metrics MetricSink
 
 	// rootCtx by trace key, kept for the lifetime of the trace so children
-	// inherit the same span context. Held only in memory; v0.2 will need a
-	// persistence-aware variant.
+	// inherit the same span context.
 	ctxByKey map[MediaKey]context.Context
 
 	// Look-back buffer: download events that arrived before their *arr Grab.
 	// Keyed by DownloadID. Replayed on the next Grab carrying the same ID.
 	pendingDL    map[string]*pendingDownload
 	pendingDLTTL time.Duration
+
+	// Per-trace lifecycle timing for metric derivation. Keyed by MediaKey.
+	timing map[MediaKey]*lifecycleTiming
+}
+
+// lifecycleTiming captures phase boundaries for in-flight traces.
+type lifecycleTiming struct {
+	openedAt          time.Time
+	approvedAt        time.Time
+	grabbedAt         time.Time
+	downloadStartedAt time.Time
+	downloadEndedAt   time.Time
+	indexer           string
+	downloadClient    string
+	protocol          string
+	mediaType         string
+	source            string
 }
 
 type pendingDownload struct {
@@ -63,16 +93,36 @@ type pendingDownload struct {
 	addedAt time.Time
 }
 
+// noopMetrics is the default MetricSink: every method is a no-op so
+// engine code can call e.metrics.* unconditionally.
+type noopMetrics struct{}
+
+func (noopMetrics) ObserveRequest(context.Context, string, string, string, time.Duration) {}
+func (noopMetrics) ObserveGrab(context.Context, string, string, time.Duration)            {}
+func (noopMetrics) ObserveDownload(context.Context, string, string, time.Duration)        {}
+func (noopMetrics) ObserveImport(context.Context, string, time.Duration)                  {}
+func (noopMetrics) CountAttempt(context.Context, string, string, string)                  {}
+func (noopMetrics) AdjustInFlight(context.Context, string, int64)                         {}
+
 // NewEngine returns a configured engine.
 func NewEngine(store Store, builder Builder, log *slog.Logger, pendingDLTTL time.Duration) *Engine {
 	return &Engine{
 		store:        store,
 		builder:      builder,
 		log:          log,
+		metrics:      noopMetrics{},
 		ctxByKey:     make(map[MediaKey]context.Context),
 		pendingDL:    make(map[string]*pendingDownload),
 		pendingDLTTL: pendingDLTTL,
+		timing:       make(map[MediaKey]*lifecycleTiming),
 	}
+}
+
+// SetMetrics installs the metric sink. nil disables metric emission.
+func (e *Engine) SetMetrics(m MetricSink) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.metrics = m
 }
 
 // Restore rehydrates in-flight traces from the store. Each loaded trace is
@@ -208,6 +258,12 @@ func (e *Engine) onRequestOpened(ctx context.Context, ev Event) {
 	}
 	e.ctxByKey[ev.Key] = rootCtx
 	e.store.Put(state)
+	e.timing[ev.Key] = &lifecycleTiming{
+		openedAt:  ev.OccurredAt,
+		mediaType: string(ev.Key.Type),
+		source:    string(ev.Source),
+	}
+	e.metrics.AdjustInFlight(ctx, "request", 1)
 	e.log.LogAttrs(ctx, slog.LevelInfo, "request opened",
 		slog.String("event", "media.request.opened"),
 		slog.String("media.title", ev.Title),
@@ -260,6 +316,9 @@ func (e *Engine) onRequestApproved(ctx context.Context, ev Event) {
 	state.SearchStart = ev.OccurredAt
 	state.UpdatedAt = ev.OccurredAt
 	e.store.Put(state)
+	if t := e.timing[key]; t != nil {
+		t.approvedAt = ev.OccurredAt
+	}
 	e.builder.AddSpanEvent(rootCtx, [8]byte{}, "request.approved", ev.OccurredAt, nil)
 }
 
@@ -294,6 +353,15 @@ func (e *Engine) onRequestClosed(ctx context.Context, ev Event) {
 	delete(e.ctxByKey, key)
 	e.store.Delete(key)
 	e.store.RememberClosed(key, state.TraceID, state.Attempt, ev.Outcome, ev.OccurredAt)
+	if t := e.timing[key]; t != nil {
+		e.metrics.ObserveRequest(ctx, t.mediaType, t.source, string(ev.Outcome), ev.OccurredAt.Sub(t.openedAt))
+		e.metrics.CountAttempt(ctx, t.mediaType, string(ev.Outcome), "")
+		e.metrics.AdjustInFlight(ctx, "request", -1)
+		if state.HasGrab {
+			e.metrics.AdjustInFlight(ctx, "grab", -1)
+		}
+		delete(e.timing, key)
+	}
 	e.log.LogAttrs(ctx, slog.LevelInfo, "request closed",
 		slog.String("event", "media.request.closed"),
 		slog.String("outcome", string(ev.Outcome)),
@@ -345,6 +413,21 @@ func (e *Engine) onGrabbed(ctx context.Context, ev Event) {
 	}
 	e.store.Put(state)
 
+	if t := e.timing[key]; t != nil {
+		t.grabbedAt = ev.OccurredAt
+		t.indexer = ev.Release.Indexer
+		t.downloadClient = ev.Release.DownloadClient
+		t.protocol = ev.Release.Protocol
+		approvalAnchor := t.approvedAt
+		if approvalAnchor.IsZero() {
+			approvalAnchor = t.openedAt
+		}
+		if !approvalAnchor.IsZero() {
+			e.metrics.ObserveGrab(ctx, t.mediaType, ev.Release.Indexer, ev.OccurredAt.Sub(approvalAnchor))
+		}
+		e.metrics.AdjustInFlight(ctx, "grab", 1)
+	}
+
 	// Replay any parked download event that arrived before this grab.
 	if pd, parked := e.pendingDL[ev.Release.DownloadID]; parked && ev.Release.DownloadID != "" {
 		delete(e.pendingDL, ev.Release.DownloadID)
@@ -389,6 +472,10 @@ func (e *Engine) handleDownloadStart(rootCtx context.Context, state *TraceState,
 	state.DownloadStartedAt = ev.OccurredAt
 	state.UpdatedAt = ev.OccurredAt
 	e.store.Put(state)
+	if t := e.timing[key]; t != nil {
+		t.downloadStartedAt = ev.OccurredAt
+		e.metrics.AdjustInFlight(rootCtx, "download", 1)
+	}
 }
 
 func (e *Engine) onDownloadDone(ctx context.Context, ev Event) {
@@ -411,10 +498,14 @@ func (e *Engine) onDownloadDone(ctx context.Context, ev Event) {
 			ev.OccurredAt, ev.OccurredAt, finalAttrs)
 	}
 	state.UpdatedAt = ev.OccurredAt
-	// Stash download end on the grab attrs via a span event so the import span
-	// can anchor against it without us needing a new field. Simpler: keep
-	// UpdatedAt as the post-download anchor.
 	e.store.Put(state)
+	if t := e.timing[state.Key]; t != nil {
+		t.downloadEndedAt = ev.OccurredAt
+		if !t.downloadStartedAt.IsZero() {
+			e.metrics.ObserveDownload(ctx, t.downloadClient, t.protocol, ev.OccurredAt.Sub(t.downloadStartedAt))
+			e.metrics.AdjustInFlight(ctx, "download", -1)
+		}
+	}
 }
 
 func (e *Engine) onImported(ctx context.Context, ev Event) {
@@ -463,6 +554,21 @@ func (e *Engine) onImported(ctx context.Context, ev Event) {
 	state.UpdatedAt = ev.OccurredAt
 	e.store.Put(state)
 
+	// Import metric — anchor to download end (or grab time as fallback).
+	if t := e.timing[key]; t != nil {
+		anchor := t.downloadEndedAt
+		if anchor.IsZero() {
+			anchor = t.grabbedAt
+		}
+		if !anchor.IsZero() {
+			app := "sonarr"
+			if ev.Source == SourceRadarr {
+				app = "radarr"
+			}
+			e.metrics.ObserveImport(ctx, app, ev.OccurredAt.Sub(anchor))
+		}
+	}
+
 	// If this trace had no Overseerr (orphan/upgrade), close root immediately.
 	if state.Source == SourceSonarr || state.Source == SourceRadarr {
 		if state.Resumed {
@@ -474,6 +580,15 @@ func (e *Engine) onImported(ctx context.Context, ev Event) {
 		delete(e.ctxByKey, key)
 		e.store.Delete(key)
 		e.store.RememberClosed(key, state.TraceID, state.Attempt, OutcomeAvailable, ev.OccurredAt)
+		if t := e.timing[key]; t != nil {
+			e.metrics.ObserveRequest(ctx, t.mediaType, t.source, string(OutcomeAvailable), ev.OccurredAt.Sub(t.openedAt))
+			e.metrics.CountAttempt(ctx, t.mediaType, string(OutcomeAvailable), spans.UpgradeManualSearch)
+			e.metrics.AdjustInFlight(ctx, "request", -1)
+			if state.HasGrab {
+				e.metrics.AdjustInFlight(ctx, "grab", -1)
+			}
+			delete(e.timing, key)
+		}
 	}
 }
 
@@ -712,6 +827,13 @@ func releaseAttrs(r Release) []attribute.KeyValue {
 	}
 	if r.Protocol != "" {
 		out = append(out, spans.AttrMediaProtocol.String(r.Protocol))
+	}
+	if len(r.Episodes) > 1 {
+		// Cardinality-friendly JSON encoding: [{s,e,tvdb}, ...]. The grab span
+		// is the only place this lands; we never lift it into a metric label.
+		if b, err := json.Marshal(r.Episodes); err == nil {
+			out = append(out, spans.AttrMediaEpisodes.String(string(b)))
+		}
 	}
 	return out
 }

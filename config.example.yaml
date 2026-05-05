@@ -1,4 +1,4 @@
-# tracearr v0.1 example config.
+# tracearr example config.
 #
 # Secrets are NEVER inlined here — use *_env keys to point at environment
 # variables. See README.md for the full attribute and event reference.

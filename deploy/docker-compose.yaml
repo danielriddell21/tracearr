@@ -1,7 +1,7 @@
 # Reference compose snippet wiring tracearr to an OTel Collector and Tempo.
 # Drop into your existing *arr stack; tracearr does not depend on the *arr
 # containers being in this compose file — it only needs network reachability
-# for v0.2 polling (Prowlarr / queue endpoints).
+# for Prowlarr history and Sonarr/Radarr queue polling.
 
 services:
   tracearr:

@@ -18,6 +18,7 @@ import (
 	"github.com/danielriddell21/tracearr/internal/correlate"
 	"github.com/danielriddell21/tracearr/internal/exporter"
 	"github.com/danielriddell21/tracearr/internal/log"
+	"github.com/danielriddell21/tracearr/internal/metrics"
 	"github.com/danielriddell21/tracearr/internal/poller"
 	"github.com/danielriddell21/tracearr/internal/receiver"
 	"github.com/danielriddell21/tracearr/internal/spans"
@@ -87,6 +88,20 @@ func run() error {
 	defer func() { _ = store.Close() }()
 
 	engine := correlate.NewEngine(store, builder, logger, cfg.Correlation.DownloadLookback)
+
+	var metricsRegistry *metrics.Metrics
+	if cfg.Metrics.Enabled {
+		metricsRegistry, err = metrics.New("tracearr", "media", version)
+		if err != nil {
+			return fmt.Errorf("init metrics: %w", err)
+		}
+		defer func() {
+			shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = metricsRegistry.Shutdown(shutCtx)
+		}()
+		engine.SetMetrics(metricsRegistry)
+	}
 	engine.Restore(ctx)
 
 	// Janitor.
@@ -105,7 +120,7 @@ func run() error {
 		}
 	}()
 
-	// Pollers (v0.2). Each runs in its own goroutine; ctx cancellation stops them.
+	// Pollers. Each runs in its own goroutine; ctx cancellation stops them.
 	if app := cfg.Sources.Sonarr; app.Enabled && app.BaseURL != "" && app.APIKey != "" {
 		p := poller.NewQueuePoller("sonarr", app.BaseURL, app.APIKey, app.QueuePollInterval,
 			poller.EngineNoter{Engine: engine}, logger)
@@ -122,9 +137,14 @@ func run() error {
 		go p.Run(ctx)
 	}
 
+	rcv := receiver.NewServer(cfg, engine, logger)
+	if metricsRegistry != nil {
+		rcv.SetMetrics(metricsRegistry)
+		rcv.SetScrapeHandler(metricsRegistry.Handler())
+	}
 	srv := &http.Server{
 		Addr:        cfg.Server.Listen,
-		Handler:     receiver.NewServer(cfg, engine, logger).Mux(),
+		Handler:     rcv.Mux(),
 		ReadTimeout: cfg.Server.ReadTimeout,
 	}
 
