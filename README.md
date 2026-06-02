@@ -1,5 +1,11 @@
 # tracearr
 
+[![CI](https://github.com/danielriddell21/tracearr/actions/workflows/ci.yaml/badge.svg)](https://github.com/danielriddell21/tracearr/actions/workflows/ci.yaml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=danielriddell21_tracearr&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=danielriddell21_tracearr)
+[![codecov](https://codecov.io/gh/danielriddell21/tracearr/graph/badge.svg)](https://codecov.io/gh/danielriddell21/tracearr)
+[![Go 1.26](https://img.shields.io/badge/go-1.26-blue)](https://go.dev)
+[![MIT License](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+
 OpenTelemetry trace collector for the *arr stack. Single Go binary that turns
 Overseerr/Sonarr/Radarr webhooks and NZBGet/SABnzbd post-processing callbacks
 into causal, W3C-compliant traces of a media request's full lifecycle —
