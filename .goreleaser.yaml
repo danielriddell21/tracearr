@@ -35,7 +35,6 @@ dockers:
     dockerfile: Dockerfile
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--build-arg=VERSION={{ .Version }}"
   - image_templates:
       - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-arm64"
     use: buildx
@@ -44,7 +43,6 @@ dockers:
     dockerfile: Dockerfile
     build_flag_templates:
       - "--platform=linux/arm64"
-      - "--build-arg=VERSION={{ .Version }}"
 docker_manifests:
   - name_template: "ghcr.io/danielriddell21/tracearr:{{ .Version }}"
     image_templates:
@@ -54,5 +52,16 @@ docker_manifests:
     image_templates:
       - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-amd64"
       - "ghcr.io/danielriddell21/tracearr:{{ .Version }}-arm64"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
 release:
-  draft: true
+  name_template: "v{{ .Version }}"
