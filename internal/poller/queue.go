@@ -32,8 +32,8 @@ type QueuePoller struct {
 	obs      QueueObserver
 	log      *slog.Logger
 
-	mu     sync.Mutex
-	seen   map[string]string // downloadID -> last reported status (suppress repeats)
+	mu   sync.Mutex
+	seen map[string]string // downloadID -> last reported status (suppress repeats)
 }
 
 // NewQueuePoller wires a poller. The same shape works for Sonarr v3+ and
@@ -78,10 +78,10 @@ type queueResponse struct {
 }
 
 type queueRecord struct {
-	DownloadID    string         `json:"downloadId"`
-	Status        string         `json:"status"`        // queued | downloading | completed | warning | failed | delay
+	DownloadID            string `json:"downloadId"`
+	Status                string `json:"status"` // queued | downloading | completed | warning | failed | delay
 	TrackedDownloadStatus string `json:"trackedDownloadStatus"`
-	StatusMessages []struct {
+	StatusMessages        []struct {
 		Title    string   `json:"title"`
 		Messages []string `json:"messages"`
 	} `json:"statusMessages"`
@@ -104,7 +104,7 @@ func (p *QueuePoller) tick(ctx context.Context, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -153,7 +153,7 @@ func (p *QueuePoller) tick(ctx context.Context, now time.Time) error {
 // engine package at test time.
 type EngineNoter struct{ Engine *correlate.Engine }
 
+// NoteQueueIssue forwards the queue issue to the correlation engine.
 func (e EngineNoter) NoteQueueIssue(ctx context.Context, downloadID, status, msg string, when time.Time) {
 	e.Engine.NoteQueueIssue(ctx, downloadID, status, msg, when)
 }
-

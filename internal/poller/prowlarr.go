@@ -34,6 +34,8 @@ type ProwlarrPoller struct {
 	cursor time.Time // last processed entry's date
 }
 
+// NewProwlarrPoller creates a ProwlarrPoller that calls emitter for each
+// new search history entry discovered on each tick.
 func NewProwlarrPoller(baseURL, apiKey string, interval time.Duration,
 	emitter SearchEmitter, log *slog.Logger) *ProwlarrPoller {
 	return &ProwlarrPoller{
@@ -46,6 +48,7 @@ func NewProwlarrPoller(baseURL, apiKey string, interval time.Duration,
 	}
 }
 
+// Run polls Prowlarr until ctx is cancelled.
 func (p *ProwlarrPoller) Run(ctx context.Context) {
 	if p.interval <= 0 {
 		p.interval = 30 * time.Second
@@ -100,7 +103,7 @@ func (p *ProwlarrPoller) tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status %d", resp.StatusCode)
 	}
@@ -134,7 +137,7 @@ func (p *ProwlarrPoller) tick(ctx context.Context) error {
 // EngineProwlarr adapts a *correlate.Engine to SearchEmitter.
 type EngineProwlarr struct{ Engine *correlate.Engine }
 
+// EmitProwlarrSearch forwards the search event to the correlation engine.
 func (e EngineProwlarr) EmitProwlarrSearch(ctx context.Context, query, indexer string, when time.Time, elapsedMs int64) {
 	e.Engine.EmitProwlarrSearch(ctx, query, indexer, when, elapsedMs)
 }
-

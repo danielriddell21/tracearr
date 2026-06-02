@@ -8,13 +8,13 @@ import (
 // TraceState is the per-trace record kept in the store. It is JSON-
 // serialised into BoltDB; field names are stable.
 type TraceState struct {
-	Key       MediaKey  `json:"key"`
-	TraceID   [16]byte  `json:"trace_id"`
-	RootSpanID [8]byte  `json:"root_span_id"`
-	Attempt   int       `json:"attempt"`
-	Source    Source    `json:"source"`
-	OpenedAt  time.Time `json:"opened_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Key        MediaKey  `json:"key"`
+	TraceID    [16]byte  `json:"trace_id"`
+	RootSpanID [8]byte   `json:"root_span_id"`
+	Attempt    int       `json:"attempt"`
+	Source     Source    `json:"source"`
+	OpenedAt   time.Time `json:"opened_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 
 	// References to active child spans by phase. We keep span IDs so receivers
 	// can close the right child without re-resolving.

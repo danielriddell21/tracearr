@@ -46,7 +46,7 @@ func TestMovieHappyPath(t *testing.T) {
 		Source: SourceRadarr, Phase: PhaseGrabbed, OccurredAt: tsec(125),
 		Key: mediaKey, Title: "The Matrix",
 		Release: Release{
-			Title: "The.Matrix.1999.2160p.WEB.x265-FLUX",
+			Title:   "The.Matrix.1999.2160p.WEB.x265-FLUX",
 			Indexer: "NZBgeek", Group: "FLUX", Quality: "WEBDL-2160p",
 			SizeBytes: 12345678901, DownloadClient: "NZBGet", DownloadID: "nzb-aaa",
 			Protocol: "usenet",
@@ -159,7 +159,7 @@ func TestTVEpisodeFlow(t *testing.T) {
 		Source: SourceSonarr, Phase: PhaseGrabbed, OccurredAt: tsec(120),
 		Key: epKey, Title: "Severance",
 		Release: Release{
-			Title: "Severance.S02E04.WEBRip.x264-NoGroup",
+			Title:   "Severance.S02E04.WEBRip.x264-NoGroup",
 			Indexer: "DrunkenSlug", DownloadClient: "NZBGet", DownloadID: "nzb-bbb",
 			Protocol: "usenet", Quality: "WEBRip-1080p",
 		},

@@ -11,25 +11,25 @@ import (
 
 // recordedSpan is what the fake builder collects per call.
 type recordedSpan struct {
-	Name       string
-	Kind       string
-	Start      time.Time
-	End        time.Time
-	Synthetic  bool
-	Closed     bool
-	Status     string // "" | "ok" | "error:<reason>"
-	Attrs      []attribute.KeyValue
-	Events     []recordedEvent
-	ParentID   [8]byte
-	SpanID     [8]byte
-	TraceID    [16]byte
-	HasParent  bool
-	Links      []trace.Link
+	Name      string
+	Kind      string
+	Start     time.Time
+	End       time.Time
+	Synthetic bool
+	Closed    bool
+	Status    string // "" | "ok" | "error:<reason>"
+	Attrs     []attribute.KeyValue
+	Events    []recordedEvent
+	ParentID  [8]byte
+	SpanID    [8]byte
+	TraceID   [16]byte
+	HasParent bool
+	Links     []trace.Link
 }
 
 type recordedEvent struct {
-	Name string
-	When time.Time
+	Name  string
+	When  time.Time
 	Attrs []attribute.KeyValue
 }
 
@@ -67,7 +67,7 @@ func (b *fakeBuilder) nextTraceID() [16]byte {
 	return out
 }
 
-type rootCtxKey struct{ id uint64 }
+type rootCtxKey struct{}
 
 func (b *fakeBuilder) OpenRoot(ctx context.Context, name, kind string, start time.Time,
 	attrs []attribute.KeyValue, links []trace.Link) (context.Context, [16]byte, [8]byte) {

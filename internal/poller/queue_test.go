@@ -43,7 +43,7 @@ func TestQueuePollerEmitsStalledOnly(t *testing.T) {
 	]}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") != "k" {
-			http.Error(w, "no key", 401)
+			http.Error(w, "no key", http.StatusUnauthorized)
 			return
 		}
 		_, _ = io.WriteString(w, body)

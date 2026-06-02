@@ -15,13 +15,13 @@ import (
 // and post-processing; the script wraps their state into this JSON and
 // POSTs to /script/<client>.
 type DownloadPayload struct {
-	Event       string `json:"event"`        // "queue_added" | "post_processed"
-	DownloadID  string `json:"download_id"`  // NZBGet NZBID or SAB nzo_id
-	Name        string `json:"name"`
-	Category    string `json:"category"`     // typically the *arr instance name
-	Status      string `json:"status"`       // "SUCCESS" | "FAILURE" | "Completed" | "Failed"
-	SizeBytes   int64  `json:"size_bytes"`
-	TS          string `json:"ts"`           // RFC3339; falls back to now() if blank
+	Event      string `json:"event"`       // "queue_added" | "post_processed"
+	DownloadID string `json:"download_id"` // NZBGet NZBID or SAB nzo_id
+	Name       string `json:"name"`
+	Category   string `json:"category"` // typically the *arr instance name
+	Status     string `json:"status"`   // "SUCCESS" | "FAILURE" | "Completed" | "Failed"
+	SizeBytes  int64  `json:"size_bytes"`
+	TS         string `json:"ts"` // RFC3339; falls back to now() if blank
 }
 
 // ParseDownload converts a script-side payload to one or more events.

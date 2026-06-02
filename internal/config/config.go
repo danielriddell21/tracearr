@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the top-level tracearr configuration.
 type Config struct {
 	Server      ServerConfig      `yaml:"server"`
 	Storage     StorageConfig     `yaml:"storage"`
@@ -23,22 +24,26 @@ type Config struct {
 	Metrics     MetricsConfig     `yaml:"metrics"`
 }
 
+// ServerConfig configures the HTTP server.
 type ServerConfig struct {
-	Listen       string        `yaml:"listen"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
+	Listen      string        `yaml:"listen"`
+	ReadTimeout time.Duration `yaml:"read_timeout"`
 }
 
+// StorageConfig configures trace storage.
 type StorageConfig struct {
-	Backend            string        `yaml:"backend"`
-	Path               string        `yaml:"path"`
-	MaxTraceDuration   time.Duration `yaml:"max_trace_duration"`
+	Backend          string        `yaml:"backend"`
+	Path             string        `yaml:"path"`
+	MaxTraceDuration time.Duration `yaml:"max_trace_duration"`
 }
 
+// CorrelationConfig tunes how events are correlated into traces.
 type CorrelationConfig struct {
-	ProwlarrBuffer  time.Duration `yaml:"prowlarr_buffer"`
+	ProwlarrBuffer   time.Duration `yaml:"prowlarr_buffer"`
 	DownloadLookback time.Duration `yaml:"download_lookback"`
 }
 
+// SourcesConfig holds per-application source settings.
 type SourcesConfig struct {
 	Overseerr  AppSource `yaml:"overseerr"`
 	Jellyseerr AppSource `yaml:"jellyseerr"`
@@ -49,6 +54,7 @@ type SourcesConfig struct {
 	SABnzbd    AppSource `yaml:"sabnzbd"`
 }
 
+// AppSource configures a single *arr application source.
 type AppSource struct {
 	Enabled             bool          `yaml:"enabled"`
 	BaseURL             string        `yaml:"base_url"`
@@ -64,10 +70,12 @@ type AppSource struct {
 	ScriptToken   string `yaml:"-"`
 }
 
+// ExporterConfig configures trace export.
 type ExporterConfig struct {
 	OTLP OTLPConfig `yaml:"otlp"`
 }
 
+// OTLPConfig configures the OTLP exporter.
 type OTLPConfig struct {
 	Endpoint   string    `yaml:"endpoint"`
 	Protocol   string    `yaml:"protocol"`
@@ -76,16 +84,19 @@ type OTLPConfig struct {
 	TLS        TLSConfig `yaml:"tls"`
 }
 
+// TLSConfig configures TLS for the OTLP exporter.
 type TLSConfig struct {
 	CAFile   string `yaml:"ca_file"`
 	CertFile string `yaml:"cert_file"`
 	KeyFile  string `yaml:"key_file"`
 }
 
+// SamplingConfig configures trace sampling.
 type SamplingConfig struct {
 	Strategy string `yaml:"strategy"`
 }
 
+// LogsConfig configures logging.
 type LogsConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
@@ -94,6 +105,7 @@ type LogsConfig struct {
 	} `yaml:"otlp"`
 }
 
+// MetricsConfig configures metrics export.
 type MetricsConfig struct {
 	Enabled        bool          `yaml:"enabled"`
 	ExportInterval time.Duration `yaml:"export_interval"`

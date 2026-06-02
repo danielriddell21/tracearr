@@ -93,7 +93,7 @@ func logMiddleware(log *slog.Logger, h http.Handler) http.Handler {
 
 // readBody pulls the body up to the cap installed in payloadCap.
 func readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var maxErr *http.MaxBytesError

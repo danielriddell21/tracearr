@@ -37,27 +37,27 @@ const (
 
 // Grab/search attributes.
 const (
-	AttrMediaIndexer            = attribute.Key("media.indexer")
-	AttrMediaIndexerID          = attribute.Key("media.indexer_id")
-	AttrMediaSearchQuery        = attribute.Key("media.search_query")
-	AttrMediaReleaseTitle       = attribute.Key("media.release_title")
-	AttrMediaReleaseGroup       = attribute.Key("media.release_group")
-	AttrMediaQuality            = attribute.Key("media.quality")
-	AttrMediaQualityProfile     = attribute.Key("media.quality_profile")
-	AttrMediaSizeBytes          = attribute.Key("media.size_bytes")
-	AttrMediaCustomFormatScore  = attribute.Key("media.custom_format_score")
-	AttrMediaDownloadClient     = attribute.Key("media.download_client")
-	AttrMediaDownloadClientID   = attribute.Key("media.download_client_id")
-	AttrMediaProtocol           = attribute.Key("media.protocol")
-	AttrMediaEpisodes           = attribute.Key("media.episodes")
-	AttrProwlarrElapsedMs       = attribute.Key("prowlarr.elapsed_ms")
+	AttrMediaIndexer           = attribute.Key("media.indexer")
+	AttrMediaIndexerID         = attribute.Key("media.indexer_id")
+	AttrMediaSearchQuery       = attribute.Key("media.search_query")
+	AttrMediaReleaseTitle      = attribute.Key("media.release_title")
+	AttrMediaReleaseGroup      = attribute.Key("media.release_group")
+	AttrMediaQuality           = attribute.Key("media.quality")
+	AttrMediaQualityProfile    = attribute.Key("media.quality_profile")
+	AttrMediaSizeBytes         = attribute.Key("media.size_bytes")
+	AttrMediaCustomFormatScore = attribute.Key("media.custom_format_score")
+	AttrMediaDownloadClient    = attribute.Key("media.download_client")
+	AttrMediaDownloadClientID  = attribute.Key("media.download_client_id")
+	AttrMediaProtocol          = attribute.Key("media.protocol")
+	AttrMediaEpisodes          = attribute.Key("media.episodes")
+	AttrProwlarrElapsedMs      = attribute.Key("prowlarr.elapsed_ms")
 )
 
 // Download transfer attributes.
 const (
-	AttrMediaCategory       = attribute.Key("media.category")
-	AttrDownloadBytes       = attribute.Key("download.bytes_downloaded")
-	AttrDownloadDurationMs  = attribute.Key("download.duration_ms")
+	AttrMediaCategory      = attribute.Key("media.category")
+	AttrDownloadBytes      = attribute.Key("download.bytes_downloaded")
+	AttrDownloadDurationMs = attribute.Key("download.duration_ms")
 )
 
 // Import attributes.
@@ -75,12 +75,12 @@ const (
 
 // Error reason values (used as `error.type` attribute).
 const (
-	ErrTracearrTimeout       = "tracearr.timeout"
-	ErrManualInteraction     = "arr.manual_interaction_required"
-	ErrImportFailed          = "arr.import_failed"
-	ErrOverseerrDeclined     = "overseerr.declined"
-	ErrOverseerrFailed       = "overseerr.failed"
-	ErrDownloadFailed        = "download.failed"
+	ErrTracearrTimeout   = "tracearr.timeout"
+	ErrManualInteraction = "arr.manual_interaction_required"
+	ErrImportFailed      = "arr.import_failed"
+	ErrOverseerrDeclined = "overseerr.declined"
+	ErrOverseerrFailed   = "overseerr.failed"
+	ErrDownloadFailed    = "download.failed"
 )
 
 // Source values for AttrMediaSource.

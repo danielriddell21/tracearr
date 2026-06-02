@@ -23,16 +23,16 @@ import (
 
 // Config controls the OTLP exporter.
 type Config struct {
-	Endpoint    string        // host:port for gRPC, host:port or full URL for HTTP
-	Protocol    string        // "grpc" | "http/protobuf"
-	Insecure    bool          // disable TLS
-	HeadersEnv  string        // env var holding headers like "key1=value1,key2=value2"
-	CAFile      string
-	CertFile    string
-	KeyFile     string
-	ServiceName string        // resource service.name; default "tracearr"
-	Namespace   string        // resource service.namespace; default "media"
-	Version     string        // resource service.version
+	Endpoint     string // host:port for gRPC, host:port or full URL for HTTP
+	Protocol     string // "grpc" | "http/protobuf"
+	Insecure     bool   // disable TLS
+	HeadersEnv   string // env var holding headers like "key1=value1,key2=value2"
+	CAFile       string
+	CertFile     string
+	KeyFile      string
+	ServiceName  string        // resource service.name; default "tracearr"
+	Namespace    string        // resource service.namespace; default "media"
+	Version      string        // resource service.version
 	BatchTimeout time.Duration // BatchSpanProcessor max delay
 }
 

@@ -345,7 +345,7 @@ func (e *Engine) onRequestClosed(ctx context.Context, ev Event) {
 		if !okStatus && ev.ErrorReason != "" {
 			attrs = append(attrs, attribute.String("error.type", ev.ErrorReason))
 		}
-		e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+		e.builder.SyntheticSpan(context.TODO(), spans.SpanMediaRequest, "SERVER",
 			state.OpenedAt, ev.OccurredAt, attrs)
 	} else {
 		e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, okStatus, ev.ErrorReason, nil)
@@ -572,7 +572,7 @@ func (e *Engine) onImported(ctx context.Context, ev Event) {
 	// If this trace had no Overseerr (orphan/upgrade), close root immediately.
 	if state.Source == SourceSonarr || state.Source == SourceRadarr {
 		if state.Resumed {
-			e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+			e.builder.SyntheticSpan(context.TODO(), spans.SpanMediaRequest, "SERVER",
 				state.OpenedAt, ev.OccurredAt, resumedRootAttrs(state))
 		} else {
 			e.builder.CloseSpan(rootCtx, [8]byte{}, ev.OccurredAt, true, "", nil)
@@ -678,7 +678,7 @@ func (e *Engine) EmitProwlarrSearch(ctx context.Context, query, indexer string, 
 		e.builder.SyntheticSpan(rootCtx, spans.SpanProwlarrSearch, "CLIENT", when, end, attrs)
 		return
 	}
-	e.builder.SyntheticSpan(nil, "prowlarr.unmatched", "CLIENT", when, end, attrs)
+	e.builder.SyntheticSpan(context.TODO(), "prowlarr.unmatched", "CLIENT", when, end, attrs)
 }
 
 // lookupByTitle searches in-flight traces for one whose title appears in q.
@@ -763,7 +763,7 @@ func (e *Engine) Sweep(now time.Time, ttl time.Duration) {
 		if state.Resumed {
 			attrs := resumedRootAttrs(state)
 			attrs = append(attrs, attribute.String("error.type", spans.ErrTracearrTimeout))
-			e.builder.SyntheticSpan(nil, spans.SpanMediaRequest, "SERVER",
+			e.builder.SyntheticSpan(context.TODO(), spans.SpanMediaRequest, "SERVER",
 				state.OpenedAt, now, attrs)
 		} else {
 			e.builder.CloseSpan(rootCtx, [8]byte{}, now, false, spans.ErrTracearrTimeout, nil)

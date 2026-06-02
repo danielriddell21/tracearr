@@ -8,6 +8,7 @@ import "time"
 // MediaType is movie or tv.
 type MediaType string
 
+// Media type constants.
 const (
 	MediaTypeMovie MediaType = "movie"
 	MediaTypeTV    MediaType = "tv"
@@ -17,6 +18,7 @@ const (
 // event types to one Phase; the engine decides what spans to open/close.
 type Phase string
 
+// Phase lifecycle constants.
 const (
 	PhaseRequestOpened   Phase = "request.opened"   // Overseerr MEDIA_PENDING / MEDIA_AUTO_APPROVED
 	PhaseRequestApproved Phase = "request.approved" // Overseerr MEDIA_APPROVED
@@ -31,6 +33,7 @@ const (
 // Source is the originating app.
 type Source string
 
+// Source app-name constants.
 const (
 	SourceOverseerr  Source = "overseerr"
 	SourceJellyseerr Source = "jellyseerr"
@@ -63,6 +66,7 @@ func (k MediaKey) SeriesKey() MediaKey {
 // Outcome of a closed root trace, surfaced into metrics labels.
 type Outcome string
 
+// Outcome constants for closed traces.
 const (
 	OutcomeAvailable Outcome = "available"
 	OutcomeFailed    Outcome = "failed"
@@ -113,8 +117,8 @@ type Event struct {
 	Release Release
 
 	// RequestID / RequestedBy are set on Overseerr events.
-	RequestID    string
-	RequestedBy  string
+	RequestID   string
+	RequestedBy string
 
 	// ImportPath / FileSizeBytes / Codec / Resolution on PhaseImported.
 	ImportPath    string

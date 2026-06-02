@@ -23,9 +23,9 @@ type OverseerrPayload struct {
 		Status    string `json:"status"`
 	} `json:"media"`
 	Request struct {
-		RequestID            string `json:"request_id"`
-		RequestedByUsername  string `json:"requestedBy_username"`
-		RequestedByEmail     string `json:"requestedBy_email"`
+		RequestID           string `json:"request_id"`
+		RequestedByUsername string `json:"requestedBy_username"`
+		RequestedByEmail    string `json:"requestedBy_email"`
 	} `json:"request"`
 	Extra []struct {
 		Name  string `json:"name"`
