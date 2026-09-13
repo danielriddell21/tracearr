@@ -4,13 +4,27 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   release:
-    uses: danielriddell21/github-actions/.github/workflows/release.yaml@v1
-    permissions:
-      contents: write
-      packages: write
-    with:
-      docker-login: true
-      qemu-buildx: true
-      homebrew-tap: false
+    name: letsgo
+    runs-on: ubuntu-latest
+    steps:
+      # No fetch-depth: 0. letsgo falls back to the GitHub compare API when the
+      # changelog needs history a shallow clone does not have.
+      - uses: actions/checkout@v7
+
+      # The Go version changes the bytes of the binaries, so it is pinned by
+      # go.mod rather than floating on `stable`.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # No docker/login-action, QEMU or Buildx: letsgo assembles the multi-arch
+      # image from the binaries it just built and pushes it over the registry
+      # API, so there is no daemon to authenticate. ghcr.io takes the workflow
+      # token directly, and there is no tap, so nothing else is needed.
+      - uses: danielriddell21/letsgo-action@v1
