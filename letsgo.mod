@@ -10,14 +10,14 @@ build (
 )
 
 // Replaces the GoReleaser archive file list. Naming any file at all replaces
-// letsgo's default of README and LICENSE, so those are repeated here; the paths
-// are plain rather than globs, so the two scripts are named individually.
+// letsgo's default of README and LICENSE, so those are repeated here. A
+// directory expands to the files git tracks under it, so `scripts` keeps
+// carrying whatever lives there rather than a list that goes stale.
 archive (
 	README.md
 	LICENSE
 	config.example.yaml
-	scripts/nzbget/tracearr.py
-	scripts/sabnzbd/tracearr.py
+	scripts
 )
 
 // Replaces the two `dockers` entries and the `docker_manifests` that stitched
