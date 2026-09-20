@@ -1,0 +1,15 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    uses: danielriddell21/github-actions/.github/workflows/release.yaml@v2
+    permissions:
+      contents: write
+      packages: write
+    with:
+      # No tap, so no App token to mint.
+      homebrew-tap: false
