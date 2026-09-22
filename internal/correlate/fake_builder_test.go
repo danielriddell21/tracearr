@@ -200,7 +200,7 @@ func hasAttr(s *recordedSpan, key attribute.Key) bool {
 func attrValue(s *recordedSpan, key attribute.Key) string {
 	for _, a := range s.Attrs {
 		if a.Key == key {
-			return a.Value.Emit()
+			return a.Value.String()
 		}
 	}
 	return ""
