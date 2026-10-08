@@ -1,0 +1,48 @@
+name: Promote
+
+# Unticking "Set as a pre-release" on a release candidate in the GitHub UI
+# fires `released`. letsgo promote rebuilds the candidate, refuses if it does
+# not match, tags the stable version and publishes it: the release and the
+# image's latest tags.
+
+on:
+  release:
+    types: [released]
+
+  # A failed promotion can be replayed by hand. Promoting is idempotent: it
+  # refuses once the stable tag already exists.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release candidate to promote, such as v1.4.0-rc.1
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  promote:
+    name: letsgo
+    # `released` also fires for a stable release; only a candidate, a tag
+    # with a "-", is something to promote.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.release.tag_name, '-')
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the stable release's notes cover every candidate since
+      # the last stable tag.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          fetch-depth: 0
+
+      # The compiler is a build input, so it is pinned by go.mod.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - uses: danielriddell21/letsgo-action@v1
+        with:
+          command: promote
+          args: --yes --work dist ${{ inputs.tag || github.event.release.tag_name }}

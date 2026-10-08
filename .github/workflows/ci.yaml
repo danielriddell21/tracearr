@@ -14,6 +14,8 @@ jobs:
     permissions:
       contents: read
     with:
+      # A release candidate; promote.yaml publishes the stable version.
+      pre: true
       build-command: go build -o /dev/null ./cmd/tracearr
     secrets:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
